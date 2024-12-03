@@ -1,141 +1,215 @@
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom"; // useNavigate 추가
 import styled from "styled-components";
-import { searchContents, GetMoviesResult, searchGeneres } from "../api";
-import { makeImgePath } from "../utills";
+import {
+  searchContents,
+  getCertification,
+  GetMoviesResult,
+  Movie,
+} from "../api";
+import { makeImagePath } from "../utils";
+import Pagination from "react-js-pagination";
 
-const Container = styled.main`
+const Container = styled.div`
   width: 100%;
-  margin-top: 60px;
-`;
-
-const SearchBox = styled.div`
-  width: 100%;
-  padding: 10px;
-`;
-
-const MovieSection = styled.div`
-  display: flex;
-  gap: 10px;
-  width: 100%;
-`;
-
-const MovieImg = styled.img`
-  width: 50%;
-`;
-
-const MovieInfo = styled.div`
-  width: 50%;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-`;
-
-const MovieTitle = styled.h4`
-  font-size: 32px;
-  background: ${(props) => props.theme.red};
-  color: ${(props) => props.theme.white.darker};
-  border-radius: 8px;
-  padding: 0px 10px;
-`;
-
-const MovieOverview = styled.p`
-  font-size: 16px;
-  line-height: 1.4;
-  border-top: 1px solid ${(props) => props.theme.black.lighter};
-  border-bottom: 1px solid ${(props) => props.theme.black.lighter};
-  padding: 18px 0px;
-`;
-
-const MovieDate = styled.div`
-  font-size: 14px;
-  span {
-    display: block;
-    background: #ffa300;
-    padding: 10px;
-    border-radius: 8px;
-  }
-`;
-
-const MovieValue = styled.div`
-  font-size: 16px;
-  width: 50px;
-  height: 50px;
+  min-height: 100vh;
   background: ${(props) => props.theme.black.lighter};
-  color: ${(props) => props.theme.white.darker};
-  text-align: center;
-  line-height: 50px;
-  border-radius: 8px;
+  padding: 20px;
+  padding-left: 50px;
 `;
 
-const MovieRate = styled.div`
-  font-size: 14px;
-  span {
-    display: block;
-    background: #ffa300;
-    padding: 10px;
-    border-radius: 8px;
+const Header = styled.div`
+  margin-top: 80px;
+  margin-bottom: 60px;
+  padding-left: 30px;
+  color: ${(props) => props.theme.white.darker};
+  h1 {
+    font-size: 28px;
   }
 `;
 
-const RateNumbers = styled.div`
-  font-size: 14px;
-  span {
-    display: block;
-    background: #ffa300;
-    padding: 10px;
-    border-radius: 8px;
+const MovieGrid = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 50px;
+`;
+
+const MovieCard = styled.div`
+  width: 240px;
+  height: 150px;
+  background: ${(props) => props.theme.black.darker};
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s ease;
+  cursor: pointer;
+  &:hover {
+    transform: scale(1.05);
+  }
+`;
+
+const MoviePoster = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+`;
+
+const Overlay = styled.div`
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 40px;
+  color: ${(props) => props.theme.white.lighter};
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 10px;
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
+
+  .title {
+    font-size: 14px;
+    font-weight: bold;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .age-restriction {
+    font-size: 12px;
+    padding: 2px 5px;
+    color: white;
+    border-radius: 4px;
+    font-weight: bold;
+    background: ${(props) => props.theme.blue.lighter};
+  }
+`;
+
+const StyledPagination = styled.div`
+  display: flex;
+  justify-content: center;
+  margin: 100px auto;
+  ul {
+    display: flex;
+    list-style: none;
+    padding: 0;
+    li {
+      margin: 0 5px;
+      a {
+        color: ${(props) => props.theme.white.darker};
+        padding: 5px 10px;
+        border-radius: 5px;
+        text-decoration: none;
+        transition: background 0.3s;
+        &:hover {
+          background: ${(props) => props.theme.blue.darker};
+        }
+      }
+      &.active a {
+        background: ${(props) => props.theme.blue.darker};
+        color: white;
+      }
+    }
   }
 `;
 
 const Search = () => {
-  const { search } = useLocation();
-  const keyword = new URLSearchParams(search).get("keyword");
+  const location = useLocation();
+  const navigate = useNavigate();
+  const keyword = new URLSearchParams(location.search).get("keyword");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [certifications, setCertifications] = useState<Record<number, string>>(
+    {}
+  );
 
-  const contents = searchContents(keyword || "");
+  const moviesPerPage = 20;
 
   const { data: movieData, isLoading: movieLoading } =
     useQuery<GetMoviesResult>({
-      queryKey: ["multiContents", keyword],
-      queryFn: () => searchContents(keyword || ""),
+      queryKey: ["searchContents", keyword],
+      queryFn: () => searchContents(keyword),
     });
 
-  const { data: genreData, isLoading: genreLoading } = useQuery({
-    queryKey: ["getGenres"],
-    queryFn: searchGeneres,
-  });
+  const currentMovies = (movieData?.results || [])
+    .filter((movie) => movie?.id) // id가 있는 영화만 포함
+    .slice((currentPage - 1) * moviesPerPage, currentPage * moviesPerPage);
+
+  useEffect(() => {
+    const fetchCertifications = async () => {
+      const results: Record<number, string> = {};
+      for (const movie of currentMovies) {
+        const data = await getCertification(movie.id);
+        const krRelease = data.results.find(
+          (release: any) => release.iso_3166_1 === "KR"
+        );
+        results[movie.id] =
+          krRelease && krRelease.release_dates.length > 0
+            ? krRelease.release_dates[0].certification || "15"
+            : "15";
+      }
+      setCertifications(results);
+    };
+
+    if (currentMovies.length > 0) {
+      fetchCertifications();
+    }
+  }, [currentMovies]);
+
+  const handlePageChange = (pageNumber: number) => {
+    setCurrentPage(pageNumber);
+  };
+
+  const onDetail = (movieId: number | undefined) => {
+    if (!movieId) {
+      console.error("Invalid movie ID:", movieId);
+      return;
+    }
+    navigate(`/movies/${movieId}`);
+  };
+
+  if (movieLoading) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <Container>
-      {movieLoading ? (
-        <div>Loading...</div>
-      ) : (
-        <>
-          {movieData?.results.map((movie, index) => (
-            <SearchBox key={index}>
-              <MovieSection>
-                <MovieImg src={makeImgePath(movie.backdrop_path)} />
-                <MovieInfo>
-                  <MovieTitle>{movie?.original_title}</MovieTitle>
-                  <MovieOverview>{movie?.overview}</MovieOverview>
-                  <MovieDate>
-                    <span>Release : {movie.release_date}</span>
-                  </MovieDate>
-                  <MovieRate>
-                    <span>Rate : {movie.vote_average?.toFixed(2)}</span>
-                  </MovieRate>
-                  <RateNumbers>
-                    <span>
-                      Members : {movie.vote_count?.toLocaleString("ko-KR")}{" "}
-                    </span>
-                  </RateNumbers>
-                  <MovieValue>{movie?.adults ? "18+" : "ALL"}</MovieValue>
-                </MovieInfo>
-              </MovieSection>
-            </SearchBox>
-          ))}
-        </>
-      )}
+      <Header>
+        {keyword ? (
+          <h1>검색어 "{keyword}"에 대한 결과입니다.</h1>
+        ) : (
+          <h1>검색어를 입력해주세요!</h1>
+        )}
+      </Header>
+      <MovieGrid>
+        {currentMovies.map((movie) => (
+          <MovieCard key={movie.id} onClick={() => onDetail(movie.id)}>
+            <MoviePoster
+              src={makeImagePath(movie.poster_path || "")}
+              alt={movie.title}
+            />
+            <Overlay>
+              <div className="title">{movie.title}</div>
+              <div className="age-restriction">
+                {certifications[movie.id] || "15"}
+              </div>
+            </Overlay>
+          </MovieCard>
+        ))}
+      </MovieGrid>
+      <StyledPagination>
+        <Pagination
+          activePage={currentPage}
+          itemsCountPerPage={moviesPerPage}
+          totalItemsCount={movieData?.results.length || 0}
+          pageRangeDisplayed={5}
+          onChange={handlePageChange}
+        />
+      </StyledPagination>
     </Container>
   );
 };
